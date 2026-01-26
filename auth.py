@@ -1,32 +1,44 @@
+# ===================================================================
+# SISTEMA DE MONITOREO INDUSTRIAL 4.0
+# Archivo: auth.py
+# Descripción: Gestión de autenticación de usuarios
+# ===================================================================
+
 from database import Database
 
 class AuthManager:
+    """
+    CLASE PARA MANEJAR LA AUTENTICACION DE USUARIOS
+    Se encarga de validar credenciales contra la base de datos
+    """
+    
     def __init__(self):
-        #AL NACER, EL GUARDIAN CREA UNA CONEXION A LA BASE DE DATOS
+        """CONSTRUCTOR: Inicializa la conexión a la base de datos"""
         self.db = Database()
     
     def verificar_acceso(self, usuario, password):
-        #ESTA FUNCION ES UN FILTRO QUE SE ENCARGA DE RETORNAR TRUE,MENSAJE SI EL ACCESO ES CORRECTO O FALSE,MENSAJE SI ES INCORRECTO
+        """
+        VERIFICA SI LAS CREDENCIALES SON VALIDAS
         
-        #1.LIMPIEZA DE DATOS(QUITAMOS ESPACIOS ACCIDENTALES)
+        Args:
+            usuario (str): Nombre de usuario
+            password (str): Contraseña del usuario
+            
+        Returns:
+            tuple: (bool, str) - (éxito, mensaje)
+        """
+        # LIMPIAR DATOS DE ENTRADA (quitar espacios)
         u_limpio = usuario.strip()
         p_limpio = password.strip()
         
-        #2.VALIDACION BASICA PREGUNTA SI ESCRIBIO ALGO EL USUARIO
+        # VALIDAR QUE NO ESTEN VACIOS
         if not u_limpio or not p_limpio:
-            return False, "____ERROR:LOS CAMPOS NO PUEDEN ESTAR VACIOS____"
+            return False, "ERROR: Los campos no pueden estar vacíos"
         
-        #3.CONSULTA A LA BASE DE DATOS
-        #RECORDANDO QUE EN DATABASE.PY YA CREAMOS 'VALIDAR_USUARIO'
+        # CONSULTAR BASE DE DATOS
         es_valido = self.db.validar_usuario(u_limpio, p_limpio)
         
         if es_valido:
-            return True, f"BIENVENIDO {u_limpio}"
+            return True, f"Bienvenido {u_limpio}"
         else:
-            return False, f"USUARIO O PASSWORD INCORRECTOS"
-        
-""" if __name__ == "__main__":
-    auth = AuthManager()
-    #PRUEBA CON LOS DATOS QUE INSERTAMOS POR DEFECTO EN DATABASE.PY
-    resultado, mensaje = auth.verificar_acceso(" admin", "1234")
-    print(f"RESULTADO:{resultado} // Mensaje:{mensaje}") """
+            return False, "Usuario o contraseña incorrectos"
