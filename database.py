@@ -13,7 +13,7 @@ class Database:
     Gestiona usuarios, historial de sensores y operaciones CRUD
     """
     
-    def __init__(self, db_name="sistema_monitoreo.db"):
+    def __init__(self, db_name="registro_sensores.db"):
         """
         CONSTRUCTOR: Inicializa la base de datos
         

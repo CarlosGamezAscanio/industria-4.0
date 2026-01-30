@@ -1,2 +1,13 @@
+# IGNORAR ARCHIVOS CACHE DE PYTHON
 __pycache__/
 *.pyc
+
+# IGNORAR ENTORNOS VISUALES
+.venv/
+venv/
+env/
+
+# IGNORAR BASE DE DATOS
+*.db
+*.sqlite3
+*.sqlite

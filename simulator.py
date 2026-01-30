@@ -15,12 +15,12 @@ class SimuladorSensor:
     def __init__(self):
         """CONSTRUCTOR: Define los rangos de operación de los sensores"""
         # RANGOS DE TEMPERATURA (en grados Celsius)
-        self.temp_min = 20.0
+        self.temp_min = 0.0
         self.temp_max = 100.0
         
         # RANGOS DE PRESION (en PSI)
-        self.press_min = 1.0
-        self.press_max = 15.0
+        self.press_min = 0.0
+        self.press_max = 20.0
         
     def leer_sensores(self):
         """
