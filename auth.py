@@ -35,10 +35,11 @@ class AuthManager:
         if not u_limpio or not p_limpio:
             return False, "ERROR: Los campos no pueden estar vacíos"
         
-        # CONSULTAR BASE DE DATOS
-        es_valido = self.db.validar_usuario(u_limpio, p_limpio)
-        
-        if es_valido:
-            return True, f"Bienvenido {u_limpio}"
+        rol = self.db.validar_usuario(u_limpio, p_limpio)
+
+        if rol:
+            # Si 'rol' tiene algo (admin/operador), el login fue exitoso
+            # Devolvemos True y el valor del rol para que el Login sepa a dónde ir
+            return True, rol
         else:
             return False, "Usuario o contraseña incorrectos"

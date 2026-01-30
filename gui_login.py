@@ -8,6 +8,7 @@ import customtkinter as ctk
 from auth import AuthManager
 from gui_dashboard import Dashboard
 from tkinter import messagebox
+from gui_admin import AdminWindow
 
 # CONFIGURACION GLOBAL DEL TEMA VISUAL
 ctk.set_appearance_mode("dark")  # Modo oscuro
@@ -89,16 +90,20 @@ class LoginWindow(ctk.CTk):
         password = self.entry_pass.get()
         
         # VALIDAR CON EL GESTOR DE AUTENTICACION
-        exito, mensaje = self.auth.verificar_acceso(usuario, password)
+        exito, resultado = self.auth.verificar_acceso(usuario, password)
         
         if exito:
-            # LOGIN EXITOSO: Abrir dashboard
             self.destroy()  # Cerrar ventana de login
-            app_dashboard = Dashboard()
+            #SI ES ADMIN, SE APERTURA LA VISTA ADMIN
+            if resultado == "administrador":
+                app_dashboard = AdminWindow() 
+            else:    
+                app_dashboard = Dashboard()
+                
             app_dashboard.mainloop()
         else:
             # LOGIN FALLIDO: Mostrar error
-            messagebox.showerror("Error de Acceso", mensaje)
+            messagebox.showerror("Error de Acceso", resultado)
             # Limpiar campos para nuevo intento
             self.entry_pass.delete(0, 'end')
             self.entry_user.focus()

@@ -46,7 +46,8 @@ class Database:
             CREATE TABLE IF NOT EXISTS usuarios(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 usuario TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL
+                password TEXT NOT NULL,
+                rol TEXT NOT NULL DEFAULT 'operador'
             )
         ''')
         
@@ -65,8 +66,8 @@ class Database:
         cursor.execute("SELECT COUNT(*) FROM usuarios")
         if cursor.fetchone()[0] == 0:
             cursor.execute(
-                "INSERT INTO usuarios (usuario, password) VALUES (?, ?)",
-                ("admin", "1234")
+                "INSERT INTO usuarios (usuario, password, rol) VALUES (?, ?, ?)",
+                ("admin", "1234", "administrador")
             )
             
         conn.commit()
@@ -108,14 +109,66 @@ class Database:
         cursor = conn.cursor()
         
         cursor.execute(
-            "SELECT * FROM usuarios WHERE usuario=? AND password=?", 
+            "SELECT rol FROM usuarios WHERE usuario=? AND password=?", 
             (usuario, password)
         )
         resultado = cursor.fetchone()
         
         conn.close()
-        return resultado is not None
+
+        #SI NO HAY NADA, DEVOLVEMOS NONE (QUE PAYTHON INTERPRETA COMO FALSO)
+        return resultado[0] if resultado else None
     
+    def obtener_usuarios(self):
+        """[READ] Obtiene la lista de todos los usuarios registrados"""
+        conn = self.conectar()
+        cursor = conn.cursor()
+        # Traemos ID para poder borrar, nombre y rol para mostrar
+        cursor.execute("SELECT id, usuario, rol FROM usuarios")
+        usuarios = cursor.fetchall()
+        conn.close()
+        return usuarios
+
+    def agregar_usuario(self, usuario, password, rol='operador'):
+        """[CREATE] Inserta un nuevo usuario"""
+        try:
+            conn = self.conectar()
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO usuarios (usuario, password, rol) VALUES (?, ?, ?)",
+                (usuario, password, rol)
+            )
+            conn.commit()
+            conn.close()
+            return True, "Usuario creado con éxito"
+        except sqlite3.IntegrityError:
+            return False, "Error: El nombre de usuario ya existe"
+
+    def eliminar_usuario(self, id_usuario):
+        """[DELETE] Borra un usuario definitivamente"""
+        conn = self.conectar()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM usuarios WHERE id=?", (id_usuario,))
+        conn.commit()
+        conn.close()
+        return True
+    
+    def actualizar_usuario(self, id_usuario, nuevo_nombre, nuevo_password, nuevo_rol):
+        """[UPDATE] Modifica los datos de un usuario existente"""
+        try:
+            conn = self.conectar()
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE usuarios 
+                SET usuario = ?, password = ?, rol = ?
+                WHERE id = ?
+            ''', (nuevo_nombre, nuevo_password, nuevo_rol, id_usuario))
+            
+            conn.commit()
+            conn.close()
+            return True, "Usuario actualizado correctamente"
+        except Exception as e:
+            return False, f"Error al actualizar: {str(e)}"
     def obtener_historial_completo(self):
         """
         OBTIENE TODOS LOS REGISTROS DEL HISTORIAL

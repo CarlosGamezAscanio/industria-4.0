@@ -6,7 +6,7 @@
 
 import customtkinter as ctk
 from tkinter import messagebox
-from simulator import SimuladorSensor
+from simulator import Sensores
 from database import Database
 from ventanas_analisis import VentanaRegistro, VentanaGrafica
 
@@ -26,7 +26,7 @@ class Dashboard(ctk.CTk):
         self.geometry("600x550")
         
         # INICIALIZAR HERRAMIENTAS
-        self.simulador = SimuladorSensor()
+        self.simulador = Sensores()
         self.db = Database()
         self.sensor_container = None  # Contenedor de sensores
         
@@ -126,6 +126,23 @@ class Dashboard(ctk.CTk):
             width=200
         )
         self.btn_salir.pack(side="bottom", pady=20)
+
+        btn_fallo = ctk.CTkButton(
+            master=self, 
+            text="Simular Falla",
+            fg_color="red",
+            command=self.simulador.generar_falla_critica
+        )
+        btn_fallo.grid(row=10, column=0, pady=10, padx=10)
+
+        # Botón para Estabilizar
+        btn_normal = ctk.CTkButton(
+            master=self, 
+            text="Normalizar",
+            fg_color="green",
+            command=self.simulador.estabilizar_sistema
+        )
+        btn_normal.grid(row=11, column=0, pady=10, padx=10)
 
     def actualizar_automaticamente(self):
         """
