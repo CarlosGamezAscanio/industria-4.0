@@ -5,176 +5,175 @@
 # ===================================================================
 
 import customtkinter as ctk
-from tkinter import ttk
+from tkinter import ttk, messagebox, filedialog
 import matplotlib
 matplotlib.use('TkAgg')  # Backend compatible con tkinter
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from database import Database
-
+from datetime import datetime
+import pandas as pd # IMPORTANTE: Librería para Excel
 
 class VentanaRegistro(ctk.CTkToplevel):
     """
-    VENTANA PARA MOSTRAR TABLA DE HISTORIAL DE TEMPERATURA
-    Muestra todos los registros en formato tabular con estadísticas
+    VENTANA DE REPORTES CON FILTROS Y EXPORTACIÓN EXCEL
     """
     
     def __init__(self, parent):
-        """
-        CONSTRUCTOR: Inicializa la ventana de registro
-        
-        Args:
-            parent: Ventana padre (Dashboard)
-        """
         super().__init__(parent)
         
-        # CONFIGURACION DE LA VENTANA
-        self.title("REGISTRO DE TEMPERATURA")
-        self.geometry("800x600")
-        self.transient(parent)  # Mantener al frente
-        self.grab_set()  # Modal
+        self.title("GENERADOR DE REPORTES Y HISTORIAL")
+        self.geometry("900x700")
+        self.transient(parent)
+        self.grab_set()
         
-        # INICIALIZAR BASE DE DATOS
         self.db = Database()
+        self.registros_actuales = [] # Para guardar lo que se ve en pantalla
         
-        # CREAR INTERFAZ
         self.crear_interfaz()
         
-        # CARGAR DATOS
-        self.cargar_datos()
+        # Cargar datos iniciales (del día actual o todos)
+        self.filtrar_datos(cargar_todo=True)
     
     def crear_interfaz(self):
-        """CONSTRUYE LA INTERFAZ GRAFICA DE LA VENTANA"""
+        # --- HEADER Y FILTROS ---
+        frame_controles = ctk.CTkFrame(self, fg_color="#2B2B2B")
+        frame_controles.pack(fill="x", padx=20, pady=20)
         
-        # TITULO DE LA VENTANA
-        titulo = ctk.CTkLabel(
-            self, 
-            text="📊 HISTORIAL DE TEMPERATURA", 
-            font=("Roboto", 20, "bold")
-        )
-        titulo.pack(pady=20)
+        ctk.CTkLabel(frame_controles, text="📅 RANGO DE FECHAS (YYYY-MM-DD)", 
+                    font=("Roboto", 12, "bold"), text_color="#CCCCCC").pack(pady=(10,5))
         
-        # CONTENEDOR PARA LA TABLA
+        # Contenedor de inputs de fecha
+        frame_fechas = ctk.CTkFrame(frame_controles, fg_color="transparent")
+        frame_fechas.pack(pady=5)
+        
+        # Fecha Desde
+        self.ent_desde = ctk.CTkEntry(frame_fechas, placeholder_text="Desde (ej: 2023-01-01)", width=150)
+        self.ent_desde.pack(side="left", padx=10)
+        
+        # Fecha Hasta
+        self.ent_hasta = ctk.CTkEntry(frame_fechas, placeholder_text="Hasta (ej: 2023-12-31)", width=150)
+        self.ent_hasta.pack(side="left", padx=10)
+        
+        # Botones de Acción
+        frame_botones = ctk.CTkFrame(frame_controles, fg_color="transparent")
+        frame_botones.pack(pady=15)
+        
+        self.btn_filtrar = ctk.CTkButton(frame_botones, text="🔍 FILTRAR", command=self.ejecutar_filtro,
+                                       fg_color="#3498DB", width=120)
+        self.btn_filtrar.pack(side="left", padx=10)
+
+        self.btn_todos = ctk.CTkButton(frame_botones, text="🔄 VER TODO", command=lambda: self.filtrar_datos(cargar_todo=True),
+                                       fg_color="#505050", width=120)
+        self.btn_todos.pack(side="left", padx=10)
+        
+        self.btn_excel = ctk.CTkButton(frame_botones, text="📗 EXPORTAR EXCEL", command=self.generar_excel,
+                                     fg_color="#27AE60", hover_color="#219150", width=150)
+        self.btn_excel.pack(side="left", padx=10)
+
+        # --- TABLA DE RESULTADOS ---
         self.frame_tabla = ctk.CTkFrame(self)
-        self.frame_tabla.pack(fill="both", expand=True, padx=20, pady=20)
+        self.frame_tabla.pack(fill="both", expand=True, padx=20, pady=(0, 20))
         
-        # CONFIGURAR ESTILO DE LA TABLA
-        self.configurar_estilo_tabla()
-        
-        # CREAR TABLA
         self.crear_tabla()
         
-        # LABEL PARA ESTADISTICAS (se actualiza en cargar_datos)
-        self.lbl_stats = ctk.CTkLabel(self, text="", font=("Roboto", 12))
-        self.lbl_stats.pack(pady=10)
-        
-        # BOTON CERRAR
-        btn_cerrar = ctk.CTkButton(
-            self, 
-            text="CERRAR", 
-            command=self.destroy,
-            fg_color="#E74C3C", 
-            hover_color="#C0392B"
-        )
-        btn_cerrar.pack(pady=20)
-    
-    def configurar_estilo_tabla(self):
-        """CONFIGURA EL ESTILO VISUAL DE LA TABLA"""
+        # Barra de estado simple
+        self.lbl_registros = ctk.CTkLabel(self, text="Registros encontrados: 0", font=("Roboto", 12))
+        self.lbl_registros.pack(pady=5)
+
+    def crear_tabla(self):
         style = ttk.Style()
         style.theme_use("clam")
-        style.configure("Treeview",
-                       background="#2B2B2B",
-                       foreground="white",
-                       fieldbackground="#2B2B2B",
-                       borderwidth=0)
-        style.configure("Treeview.Heading",
-                       background="#1F538D",
-                       foreground="white",
-                       borderwidth=1)
+        style.configure("Treeview", background="#2B2B2B", foreground="white", fieldbackground="#2B2B2B", borderwidth=0)
+        style.configure("Treeview.Heading", background="#1F538D", foreground="white", borderwidth=1)
         style.map("Treeview", background=[("selected", "#3498DB")])
-    
-    def crear_tabla(self):
-        """CREA LA TABLA CON COLUMNAS Y SCROLLBAR"""
         
-        # DEFINIR COLUMNAS DE LA TABLA
-        columnas = ("ID", "Fecha", "Hora", "Temperatura", "Estado")
+        columnas = ("ID", "Fecha", "Temp", "Presion", "Estado")
         self.tree = ttk.Treeview(self.frame_tabla, columns=columnas, show="headings", height=20)
         
-        # CONFIGURAR ENCABEZADOS
         self.tree.heading("ID", text="ID")
-        self.tree.heading("Fecha", text="Fecha")
-        self.tree.heading("Hora", text="Hora")
-        self.tree.heading("Temperatura", text="Temperatura (°C)")
+        self.tree.heading("Fecha", text="Fecha / Hora")
+        self.tree.heading("Temp", text="Temperatura (°C)")
+        self.tree.heading("Presion", text="Presión (PSI)")
         self.tree.heading("Estado", text="Estado")
         
-        # CONFIGURAR ANCHOS DE COLUMNAS
         self.tree.column("ID", width=50, anchor="center")
-        self.tree.column("Fecha", width=120, anchor="center")
-        self.tree.column("Hora", width=120, anchor="center")
-        self.tree.column("Temperatura", width=150, anchor="center")
+        self.tree.column("Fecha", width=180, anchor="center")
+        self.tree.column("Temp", width=120, anchor="center")
+        self.tree.column("Presion", width=120, anchor="center")
         self.tree.column("Estado", width=100, anchor="center")
         
-        # CONFIGURAR COLORES POR ESTADO
-        self.tree.tag_configure("ALERTA", background="#E74C3C", foreground="white")
-        self.tree.tag_configure("NORMAL", background="#2ECC71", foreground="white")
+        self.tree.tag_configure("ALERTA", background="#E74C3C")
+        self.tree.tag_configure("NORMAL", background="#2ECC71", foreground="black")
         
-        # SCROLLBAR PARA LA TABLA
         scrollbar = ttk.Scrollbar(self.frame_tabla, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
         
-        # POSICIONAR TABLA Y SCROLLBAR
         self.tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
-    
-    def cargar_datos(self):
-        """CARGA LOS DATOS DE LA BASE DE DATOS EN LA TABLA"""
+
+    def ejecutar_filtro(self):
+        f_inicio = self.ent_desde.get().strip()
+        f_fin = self.ent_hasta.get().strip()
         
-        # OBTENER REGISTROS DE LA BASE DE DATOS
-        registros = self.db.obtener_historial_completo()
-        
-        # INSERTAR DATOS EN LA TABLA
-        for registro in registros:
-            id_reg, fecha_completa, temp, pres, estado = registro
+        if not self.validar_fechas(f_inicio, f_fin):
+            return
             
-            # SEPARAR FECHA Y HORA
-            try:
-                fecha, hora = fecha_completa.split(" ")
-            except:
-                fecha = fecha_completa
-                hora = "--"
+        self.filtrar_datos(f_inicio, f_fin)
+
+    def validar_fechas(self, f1, f2):
+        try:
+            datetime.strptime(f1, '%Y-%m-%d')
+            datetime.strptime(f2, '%Y-%m-%d')
+            return True
+        except ValueError:
+            messagebox.showerror("Error de Formato", "Las fechas deben tener el formato YYYY-MM-DD\nEjemplo: 2024-01-30")
+            return False
+
+    def filtrar_datos(self, f_inicio=None, f_fin=None, cargar_todo=False):
+        # Limpiar tabla
+        for item in self.tree.get_children():
+            self.tree.delete(item)
             
-            # INSERTAR FILA CON COLOR SEGÚN ESTADO
-            self.tree.insert("", "end", 
-                           values=(id_reg, fecha, hora, f"{temp}°C", estado),
-                           tags=(estado,))
-        
-        # CALCULAR Y MOSTRAR ESTADISTICAS
-        self.mostrar_estadisticas(registros)
-    
-    def mostrar_estadisticas(self, registros):
-        """
-        CALCULA Y MUESTRA LAS ESTADISTICAS DE LOS DATOS
-        
-        Args:
-            registros: Lista de registros de la base de datos
-        """
-        total_registros = len(registros)
-        
-        if registros:
-            temperaturas = [float(reg[2]) for reg in registros]
-            temp_max = max(temperaturas)
-            temp_min = min(temperaturas)
-            temp_prom = sum(temperaturas) / len(temperaturas)
-            
-            stats_text = (f"Total: {total_registros} registros | "
-                         f"Máx: {temp_max}°C | "
-                         f"Mín: {temp_min}°C | "
-                         f"Promedio: {temp_prom:.2f}°C")
+        if cargar_todo:
+            self.registros_actuales = self.db.obtener_historial_completo()
+            self.ent_desde.delete(0, 'end')
+            self.ent_hasta.delete(0, 'end')
         else:
-            stats_text = "No hay registros disponibles"
+            self.registros_actuales = self.db.obtener_historial_por_rango(f_inicio, f_fin)
         
-        # ACTUALIZAR LABEL DE ESTADISTICAS
-        self.lbl_stats.configure(text=stats_text)
+        # Llenar tabla
+        for reg in self.registros_actuales:
+            # DB devuelve: (id, fecha, temp, presion, estado)
+            # Treeview espera lo mismo
+            self.tree.insert("", "end", values=reg, tags=(reg[4],))
+            
+        self.lbl_registros.configure(text=f"Registros encontrados: {len(self.registros_actuales)}")
+
+    def generar_excel(self):
+        if not self.registros_actuales:
+            messagebox.showwarning("Sin datos", "No hay datos en pantalla para exportar.")
+            return
+            
+        try:
+            # Pedir dónde guardar el archivo
+            filename = filedialog.asksaveasfilename(
+                defaultextension=".xlsx",
+                filetypes=[("Excel file", "*.xlsx")],
+                title="Guardar Reporte"
+            )
+            
+            if filename:
+                # Usamos PANDAS para crear el Excel profesionalmente
+                columnas = ["ID", "Fecha y Hora", "Temperatura (°C)", "Presión (PSI)", "Estado"]
+                df = pd.DataFrame(self.registros_actuales, columns=columnas)
+                
+                # Exportar
+                df.to_excel(filename, index=False)
+                messagebox.showinfo("Éxito", f"Reporte exportado correctamente en:\n{filename}")
+                
+        except Exception as e:
+            messagebox.showerror("Error de Exportación", f"No se pudo crear el archivo Excel:\n{str(e)}")
 
 
 class VentanaGrafica(ctk.CTkToplevel):

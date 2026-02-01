@@ -143,6 +143,7 @@ class Database:
             return True, "Usuario creado con éxito"
         except sqlite3.IntegrityError:
             return False, "Error: El nombre de usuario ya existe"
+        
 
     def eliminar_usuario(self, id_usuario):
         """[DELETE] Borra un usuario definitivamente"""
@@ -169,6 +170,32 @@ class Database:
             return True, "Usuario actualizado correctamente"
         except Exception as e:
             return False, f"Error al actualizar: {str(e)}"
+        
+    def obtener_historial_por_rango(self, fecha_inicio, fecha_fin):
+        """
+        FILTRA REGISTROS ENTRE DOS FECHAS
+        Formato esperado de fechas: 'YYYY-MM-DD'
+        """
+        conn = self.conectar()
+        cursor = conn.cursor()
+        
+        # Agregamos las horas para cubrir el día completo (desde las 00:00 hasta las 23:59)
+        inicio_fmt = f"{fecha_inicio} 00:00:00"
+        fin_fmt = f"{fecha_fin} 23:59:59"
+        
+        try:
+            cursor.execute(
+                "SELECT * FROM historial WHERE fecha BETWEEN ? AND ? ORDER BY fecha DESC", 
+                (inicio_fmt, fin_fmt)
+            )
+            registros = cursor.fetchall()
+        except Exception as e:
+            print(f"Error SQL: {e}")
+            registros = []
+            
+        conn.close()
+        return registros
+        
     def obtener_historial_completo(self):
         """
         OBTIENE TODOS LOS REGISTROS DEL HISTORIAL

@@ -1,218 +1,255 @@
 # ===================================================================
 # SISTEMA DE MONITOREO INDUSTRIAL 4.0
 # Archivo: gui_dashboard.py
-# Descripción: Panel principal de monitoreo simplificado
+# Descripción: Panel principal de monitoreo corregido
 # ===================================================================
 
 import customtkinter as ctk
 from tkinter import messagebox
-from simulator import Sensores
+# Importamos las constantes del simulador para no tener números mágicos
+from simulator import SimuladorSensor, TEMP_MAX_ALERTA, TEMP_MIN_ALERTA, PRESS_MAX_ALERTA, PRESS_MIN_ALERTA
 from database import Database
 from ventanas_analisis import VentanaRegistro, VentanaGrafica
+from PIL import Image
+
+# Paleta de colores 
+COLOR_AMARILLO = "#FFD700"
+COLOR_AMARILLO_HOVER = "#FFC700"
+COLOR_GRIS_OSCURO = "#2B2B2B"
+COLOR_GRIS_MEDIO = "#3D3D3D"
+COLOR_GRIS_CLARO = "#505050"
+COLOR_NEGRO = "#1A1A1A"
+COLOR_BLANCO = "#FFFFFF"
+COLOR_TEXTO_SECUNDARIO = "#CCCCCC"
+COLOR_VERDE = "#00FF88"
+COLOR_ROJO = "#FF4444"
+COLOR_NARANJA = "#FF8C00"
+COLOR_AZUL = "#3498DB" # Agregado para temperaturas bajas
 
 class Dashboard(ctk.CTk):
-    """
-    PANEL PRINCIPAL DE MONITOREO
-    Muestra datos en tiempo real, gestiona alertas y proporciona
-    acceso a historial y gráficas de temperatura
-    """
-    
     def __init__(self):
-        """CONSTRUCTOR: Inicializa el dashboard y sus componentes"""
         super().__init__()
         
         # CONFIGURACION DE LA VENTANA
-        self.title("SISTEMA INDUSTRIAL 4.0")
-        self.geometry("600x550")
+        self.title("SISTEMA INDUSTRIAL 4.0 - PANEL DE CONTROL")
+        self.geometry("1200x700")
+        self.resizable(False, False)
+        ctk.set_appearance_mode("dark")
+        self.center_window()
         
         # INICIALIZAR HERRAMIENTAS
-        self.simulador = Sensores()
+        self.simulador = SimuladorSensor()
         self.db = Database()
-        self.sensor_container = None  # Contenedor de sensores
+        
+        # --- CONTROL DE ALERTAS (Para evitar spam de popups) ---
+        self.alerta_temp_activa = False
+        self.alerta_pres_activa = False
         
         # CREAR INTERFAZ Y INICIAR MONITOREO
         self.setup_ui()
-        self.after(1000, self.actualizar_automaticamente)  # Iniciar después de 1 segundo
+        self.after(1000, self.actualizar_automaticamente)
+
+    def center_window(self):
+        self.update_idletasks()
+        width = self.winfo_width()
+        height = self.winfo_height()
+        x = (self.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.winfo_screenheight() // 2) - (height // 2)
+        self.geometry(f'{width}x{height}+{x}+{y}')
 
     def setup_ui(self):
-        """CONSTRUYE LA INTERFAZ GRAFICA DEL DASHBOARD"""
-        
-        # CONFIGURACION DE GRID
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)
-
         # FRAME PRINCIPAL
-        self.main_frame = ctk.CTkFrame(self, corner_radius=15, width=580, height=530)
-        self.main_frame.grid(row=0, column=0, padx=10, pady=10)
-        self.main_frame.grid_propagate(False)
+        main_container = ctk.CTkFrame(self, fg_color=COLOR_NEGRO, corner_radius=0)
+        main_container.pack(fill="both", expand=True)
+        
+        # HEADER
+        header_frame = ctk.CTkFrame(main_container, fg_color=COLOR_GRIS_OSCURO, height=80, corner_radius=0)
+        header_frame.pack(fill="x")
+        header_frame.pack_propagate(False)
+        
+        title_label = ctk.CTkLabel(header_frame, text="PANEL DE CONTROL INDUSTRIAL", 
+                                 font=("Segoe UI", 32, "bold"), text_color=COLOR_AMARILLO)
+        title_label.pack(side="left", padx=30, pady=20)
+        
+        self.btn_salir = ctk.CTkButton(header_frame, text="⏻ CERRAR SESIÓN", command=self.destroy,
+                                     fg_color=COLOR_GRIS_CLARO, hover_color=COLOR_ROJO, width=160)
+        self.btn_salir.pack(side="right", padx=30, pady=20)
+        
+        # CONTENIDO
+        content_frame = ctk.CTkFrame(main_container, fg_color=COLOR_NEGRO)
+        content_frame.pack(fill="both", expand=True, padx=30, pady=30)
+        
+        # MONITOR FRAME
+        monitor_frame = ctk.CTkFrame(content_frame, fg_color=COLOR_GRIS_OSCURO, corner_radius=15)
+        monitor_frame.pack(fill="both", expand=True, pady=(0, 20))
+        
+        ctk.CTkLabel(monitor_frame, text="MONITOREO EN TIEMPO REAL", 
+                   font=("Segoe UI", 20, "bold"), text_color=COLOR_AMARILLO).pack(pady=(25, 20))
+        
+        self.lbl_status = ctk.CTkLabel(monitor_frame, text="● SISTEMA INICIALIZANDO", 
+                                     text_color=COLOR_NARANJA, font=("Segoe UI", 16, "bold"))
+        self.lbl_status.pack(pady=(0, 30))
+        
+        sensors_container = ctk.CTkFrame(monitor_frame, fg_color="transparent")
+        sensors_container.pack(fill="x", padx=40, pady=(0, 30))
+        
+        # --- TARJETA TEMPERATURA ---
+        self.temp_card = ctk.CTkFrame(sensors_container, fg_color=COLOR_GRIS_MEDIO, 
+                                    corner_radius=12, border_width=3, border_color=COLOR_GRIS_CLARO)
+        self.temp_card.pack(side="left", fill="both", expand=True, padx=10)
+        
+        try:
+            temp_img = Image.open("temperatura.png").resize((60, 60), Image.Resampling.LANCZOS)
+            temp_photo = ctk.CTkImage(light_image=temp_img, dark_image=temp_img, size=(60, 60))
+            ctk.CTkLabel(self.temp_card, image=temp_photo, text="").pack(pady=(20, 5))
+        except:
+            pass # Si no hay imagen, no falla
 
-        # TITULO DEL PANEL
-        self.lbl_titulo = ctk.CTkLabel(
-            self.main_frame, 
-            text="PANEL DE CONTROL", 
-            font=("Roboto", 28, "bold")
-        )
-        self.lbl_titulo.pack(pady=(20, 10))
-
-        # CONTENEDOR DE DATOS DE SENSORES
-        self.sensor_container = ctk.CTkFrame(
-            self.main_frame, 
-            fg_color="#212121", 
-            border_width=2, 
-            border_color="#34495E"
-        )
-        self.sensor_container.pack(fill="x", padx=40, pady=20, ipady=40)
-
-        # INDICADOR DE ESTADO DEL SISTEMA
-        self.lbl_status = ctk.CTkLabel(
-            self.sensor_container, 
-            text="● SISTEMA EN VIVO", 
-            text_color="#00FFFF", 
-            font=("Roboto", 14, "bold")
-        )
-        self.lbl_status.pack(pady=(15, 0))
-
-        # DISPLAY DE TEMPERATURA
-        self.lbl_temp = ctk.CTkLabel(
-            self.sensor_container, 
-            text="-- °C", 
-            font=("Roboto", 20, "bold")
-        )
+        ctk.CTkLabel(self.temp_card, text="TEMPERATURA", font=("Segoe UI", 16, "bold"), 
+                   text_color=COLOR_TEXTO_SECUNDARIO).pack()
+        
+        self.lbl_temp = ctk.CTkLabel(self.temp_card, text="-- °C", font=("Segoe UI", 48, "bold"), 
+                                   text_color=COLOR_BLANCO)
         self.lbl_temp.pack(pady=10)
+        
+        ctk.CTkLabel(self.temp_card, text=f"Rango: {TEMP_MIN_ALERTA}°C - {TEMP_MAX_ALERTA}°C", 
+                   font=("Segoe UI", 12), text_color=COLOR_TEXTO_SECUNDARIO).pack(pady=(5, 20))
+        
+        # --- TARJETA PRESIÓN ---
+        self.pres_card = ctk.CTkFrame(sensors_container, fg_color=COLOR_GRIS_MEDIO, 
+                                    corner_radius=12, border_width=3, border_color=COLOR_GRIS_CLARO)
+        self.pres_card.pack(side="left", fill="both", expand=True, padx=10)
+        
+        try:
+            pres_img = Image.open("presion.png").resize((60, 60), Image.Resampling.LANCZOS)
+            pres_photo = ctk.CTkImage(light_image=pres_img, dark_image=pres_img, size=(60, 60))
+            ctk.CTkLabel(self.pres_card, image=pres_photo, text="").pack(pady=(20, 5))
+        except:
+            pass
 
-        # DISPLAY DE PRESION
-        self.lbl_pres = ctk.CTkLabel(
-            self.sensor_container, 
-            text="-- PSI", 
-            font=("Roboto", 20, "bold")
-        )
+        ctk.CTkLabel(self.pres_card, text="PRESIÓN", font=("Segoe UI", 16, "bold"), 
+                   text_color=COLOR_TEXTO_SECUNDARIO).pack()
+        
+        self.lbl_pres = ctk.CTkLabel(self.pres_card, text="-- PSI", font=("Segoe UI", 48, "bold"), 
+                                   text_color=COLOR_BLANCO)
         self.lbl_pres.pack(pady=10)
-
-        # FRAME PARA BOTONES DE FUNCIONES
-        frame_botones = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        frame_botones.pack(pady=20)
-
-        # BOTON PARA VER REGISTRO TABULAR
-        self.btn_registro = ctk.CTkButton(
-            frame_botones,
-            text="📊 VER REGISTRO",
-            command=self.mostrar_registro_temperatura,
-            width=200,
-            height=40,
-            fg_color="#16A085",
-            hover_color="#138D75"
-        )
-        self.btn_registro.pack(side="left", padx=10)
-
-        # BOTON PARA VER GRAFICA
-        self.btn_grafica = ctk.CTkButton(
-            frame_botones,
-            text="📈 VER GRÁFICA",
-            command=self.mostrar_grafica_temperatura,
-            width=200,
-            height=40,
-            fg_color="#9B59B6",
-            hover_color="#8E44AD"
-        )
-        self.btn_grafica.pack(side="left", padx=10)
-
-        # BOTON CERRAR SESION
-        self.btn_salir = ctk.CTkButton(
-            self.main_frame, 
-            text="CERRAR SESIÓN", 
-            command=self.destroy,
-            fg_color="#E74C3C", 
-            hover_color="#C0392B", 
-            width=200
-        )
-        self.btn_salir.pack(side="bottom", pady=20)
-
-        btn_fallo = ctk.CTkButton(
-            master=self, 
-            text="Simular Falla",
-            fg_color="red",
-            command=self.simulador.generar_falla_critica
-        )
-        btn_fallo.grid(row=10, column=0, pady=10, padx=10)
-
-        # Botón para Estabilizar
-        btn_normal = ctk.CTkButton(
-            master=self, 
-            text="Normalizar",
-            fg_color="green",
-            command=self.simulador.estabilizar_sistema
-        )
-        btn_normal.grid(row=11, column=0, pady=10, padx=10)
+        
+        ctk.CTkLabel(self.pres_card, text=f"Rango: {PRESS_MIN_ALERTA} PSI - {PRESS_MAX_ALERTA} PSI", 
+                   font=("Segoe UI", 12), text_color=COLOR_TEXTO_SECUNDARIO).pack(pady=(5, 20))
+        
+        # --- BOTONES INFERIORES ---
+        actions_frame = ctk.CTkFrame(content_frame, fg_color=COLOR_GRIS_OSCURO, corner_radius=15, height=180)
+        actions_frame.pack(fill="x")
+        actions_frame.pack_propagate(False)
+        
+        ctk.CTkLabel(actions_frame, text="ANÁLISIS Y REPORTES", font=("Segoe UI", 20, "bold"), 
+                   text_color=COLOR_AMARILLO).pack(pady=(25, 20))
+        
+        buttons_container = ctk.CTkFrame(actions_frame, fg_color="transparent")
+        buttons_container.pack(expand=True)
+        
+        self.btn_registro = ctk.CTkButton(buttons_container, text="VER REGISTRO HISTÓRICO", 
+                                        command=self.mostrar_registro_temperatura, width=280, height=55,
+                                        font=("Segoe UI", 16, "bold"), fg_color=COLOR_AMARILLO, 
+                                        text_color=COLOR_NEGRO, hover_color=COLOR_AMARILLO_HOVER)
+        self.btn_registro.pack(side="left", padx=15)
+        
+        self.btn_grafica = ctk.CTkButton(buttons_container, text="VER GRÁFICA DE TENDENCIAS", 
+                                       command=self.mostrar_grafica_temperatura, width=280, height=55,
+                                       font=("Segoe UI", 16, "bold"), fg_color=COLOR_AMARILLO, 
+                                       text_color=COLOR_NEGRO, hover_color=COLOR_AMARILLO_HOVER)
+        self.btn_grafica.pack(side="left", padx=15)
 
     def actualizar_automaticamente(self):
-        """
-        CICLO DE ACTUALIZACION AUTOMATICA
-        Se ejecuta cada 2 segundos para actualizar los datos
-        """
         self.actualizar_datos()
-        self.after(2000, self.actualizar_automaticamente)  # Repetir cada 2 segundos
+        self.after(2000, self.actualizar_automaticamente)
 
     def actualizar_datos(self):
-        """
-        ACTUALIZA LOS DATOS DE LOS SENSORES Y LA INTERFAZ
-        Lee sensores, guarda en BD y actualiza displays
-        """
-        # VERIFICAR QUE LA INTERFAZ ESTE LISTA
-        if self.sensor_container is None:
-            return
-
-        # LEER DATOS DE LOS SENSORES
+        # 1. LEER DATOS
         temp, pres, estado_sim = self.simulador.leer_sensores()
         
-        # GUARDAR EN BASE DE DATOS
+        # 2. GUARDAR EN BD
         self.db.guardar_lectura(temp, pres, estado_sim)
         
-        # ACTUALIZAR DISPLAYS
+        # 3. ACTUALIZAR INTERFAZ
         self.lbl_temp.configure(text=f"{temp} °C")
         self.lbl_pres.configure(text=f"{pres} PSI")
 
-        # LOGICA DE ALERTAS Y COLORES
-        if temp > 90 or pres > 40:
-            # ESTADO DE ALERTA: Valores críticos
-            color_alerta = "#FF4444"
-            self.lbl_temp.configure(text_color=color_alerta)
-            self.lbl_pres.configure(text_color=color_alerta)
-            self.lbl_status.configure(text="● ALERTA DE SISTEMA", text_color=color_alerta)
-            self.sensor_container.configure(border_color=color_alerta)
+        # --- LÓGICA DE DETECCIÓN DE ALERTAS ---
+        # Usamos las constantes importadas de simulator.py
+        
+        # Temperatura
+        es_temp_alta = temp > TEMP_MAX_ALERTA
+        es_temp_baja = temp < TEMP_MIN_ALERTA
+        hay_problema_temp = es_temp_alta or es_temp_baja
+        
+        # Presión
+        es_pres_alta = pres > PRESS_MAX_ALERTA
+        es_pres_baja = pres < PRESS_MIN_ALERTA
+        hay_problema_pres = es_pres_alta or es_pres_baja
+        
+        mensaje_estado = "✓ SISTEMA OPERANDO NORMALMENTE"
+        color_estado = COLOR_VERDE
+
+        # --- GESTIÓN VISUAL Y POP-UPS DE TEMPERATURA ---
+        if hay_problema_temp:
+            mensaje_estado = "⚠ ALERTA EN TEMPERATURA"
+            color_estado = COLOR_ROJO
             
-            # MOSTRAR ALERTA AL USUARIO
-            self.update_idletasks()
-            messagebox.showwarning(
-                "⚠️ ALERTA", 
-                f"Valores Críticos:\nTemp: {temp}°C\nPres: {pres} PSI"
-            )
+            # Cambiar colores tarjeta
+            color_borde = COLOR_ROJO if es_temp_alta else COLOR_AZUL
+            color_texto = COLOR_ROJO if es_temp_alta else COLOR_AZUL
+            self.temp_card.configure(border_color=color_borde, border_width=4)
+            self.lbl_temp.configure(text_color=color_texto)
+            
+            # POPUP (Solo si no estaba activa la alerta para no spammear)
+            if not self.alerta_temp_activa:
+                tipo = "ALTA" if es_temp_alta else "BAJA"
+                messagebox.showwarning("ALERTA DE TEMPERATURA", 
+                                     f"La temperatura ha salido del rango seguro.\n\n"
+                                     f"Valor actual: {temp}°C\n"
+                                     f"Tipo: Temperatura Crítica {tipo}")
+                self.alerta_temp_activa = True # Marcamos como vista
         else:
-            # ESTADO NORMAL: Valores dentro de rango
-            color_normal = "#2ECC71"
-            self.lbl_temp.configure(text_color=color_normal)
-            self.lbl_pres.configure(text_color=color_normal)
-            self.lbl_status.configure(text="● MONITOREO EN PROCESO", text_color="yellow")
-            self.sensor_container.configure(border_color="#34495E")
+            # Regresar a normalidad
+            self.temp_card.configure(border_color=COLOR_GRIS_CLARO, border_width=3)
+            self.lbl_temp.configure(text_color=COLOR_BLANCO)
+            self.alerta_temp_activa = False # Reseteamos bandera
+
+        # --- GESTIÓN VISUAL Y POP-UPS DE PRESIÓN ---
+        if hay_problema_pres:
+            if "ALERTA" in mensaje_estado:
+                mensaje_estado += " Y PRESIÓN"
+            else:
+                mensaje_estado = "⚠ ALERTA EN PRESIÓN"
+                color_estado = COLOR_ROJO
+
+            # Cambiar colores tarjeta
+            self.pres_card.configure(border_color=COLOR_ROJO, border_width=4)
+            self.lbl_pres.configure(text_color=COLOR_ROJO)
+            
+            # POPUP (Controlado)
+            if not self.alerta_pres_activa:
+                tipo = "ALTA" if es_pres_alta else "BAJA"
+                messagebox.showwarning("ALERTA DE PRESIÓN", 
+                                     f"La presión ha salido del rango seguro.\n\n"
+                                     f"Valor actual: {pres} PSI\n"
+                                     f"Tipo: Presión Crítica {tipo}")
+                self.alerta_pres_activa = True
+        else:
+            # Regresar a normalidad
+            self.pres_card.configure(border_color=COLOR_GRIS_CLARO, border_width=3)
+            self.lbl_pres.configure(text_color=COLOR_BLANCO)
+            self.alerta_pres_activa = False
+
+        # Actualizar barra inferior
+        self.lbl_status.configure(text=mensaje_estado, text_color=color_estado)
     
     def mostrar_registro_temperatura(self):
-        """
-        ABRE VENTANA CON TABLA DE HISTORIAL DE TEMPERATURA
-        Utiliza el módulo ventanas_analisis
-        """
-        try:
-            VentanaRegistro(self)
-        except Exception as e:
-            messagebox.showerror("Error", f"No se pudo abrir el registro:\n{str(e)}")
+        VentanaRegistro(self)
     
     def mostrar_grafica_temperatura(self):
-        """
-        ABRE VENTANA CON GRAFICA INTERACTIVA DE TEMPERATURA
-        Utiliza el módulo ventanas_analisis
-        """
-        try:
-            VentanaGrafica(self)
-        except Exception as e:
-            messagebox.showerror("Error", f"No se pudo abrir la gráfica:\n{str(e)}")
+        VentanaGrafica(self)
 
 if __name__ == "__main__":
     app = Dashboard()
