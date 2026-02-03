@@ -36,9 +36,6 @@ class Dashboard(ctk.CTk):
         self.resizable(True, True)  # Permitir redimensionar
         ctk.set_appearance_mode("dark")
         
-        # Activar pantalla completa al inicio
-        self.attributes('-fullscreen', True)
-        
         # Vincular tecla F11 para alternar pantalla completa
         self.bind("<F11>", self.toggle_fullscreen)
         # Vincular tecla Escape para salir de pantalla completa

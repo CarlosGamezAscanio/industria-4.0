@@ -36,16 +36,13 @@ class LoginWindow(ctk.CTk):
     def __init__(self):
         super().__init__()
         
-        # Activar pantalla completa al inicio
-        self.attributes('-fullscreen', True)
-        
         # Conexión con el gestor de autenticación
         self.auth = AuthManager()
         
         # Configuración básica de la ventana
         self.title("CONTROL INDUSTRIAL - INICIO DE SESIÓN")
         self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
-        self.resizable(False, False)
+        self.resizable(True, True)
         
         # Configuración de apariencia
         ctk.set_appearance_mode("dark")
@@ -253,31 +250,34 @@ class LoginWindow(ctk.CTk):
         u = self.entry_user.get().strip()
         p = self.entry_pass.get().strip()
         
-        # Validaciones básicas
         if not u or not p:
             self.error_label.configure(text="⚠ Por favor, complete todos los campos.")
             return
         
-        # Cambiar botón a estado de carga
         self.btn_login.configure(state="disabled", text="VERIFICANDO...", fg_color=COLOR_GRIS_CLARO)
         self.update()
         
         try:
-            # Llamada a la lógica de auth.py
-            exito, mensaje = self.auth.verificar_acceso(u, p)
+            # Ahora esto NO dará error porque recibimos exactamente 3 valores
+            exito, mensaje, rol = self.auth.verificar_acceso(u, p)
             
             if exito:
-                # Si el login es correcto, cerramos esta ventana
-                self.destroy()
-                # Abrimos la ventana de Administración
-                app_admin = AdminWindow()
-                app_admin.mainloop()
+                self.destroy() # Cerramos login
+                
+                # Convertimos a minúsculas para evitar errores de escritura (Admin vs admin)
+                if rol.lower() == "administrador":
+                    app_proxima = AdminWindow()
+                else:
+                    from gui_dashboard import Dashboard
+                    app_proxima = Dashboard()
+                
+                app_proxima.mainloop()
             else:
                 self.error_label.configure(text=f"⚠ {mensaje}")
+                self.btn_login.configure(state="normal", text="ENTRAR", fg_color=COLOR_AMARILLO)
+
         except Exception as e:
-            messagebox.showerror("Error", f"Ocurrió un error inesperado: {str(e)}")
-        finally:
-            # Restaurar botón
+            messagebox.showerror("Error", f"Error de sistema: {str(e)}")
             self.btn_login.configure(state="normal", text="ENTRAR", fg_color=COLOR_AMARILLO)
 
 if __name__ == "__main__":

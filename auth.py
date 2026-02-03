@@ -17,29 +17,21 @@ class AuthManager:
         self.db = Database()
     
     def verificar_acceso(self, usuario, password):
-        """
-        VERIFICA SI LAS CREDENCIALES SON VALIDAS
-        
-        Args:
-            usuario (str): Nombre de usuario
-            password (str): Contraseña del usuario
-            
-        Returns:
-            tuple: (bool, str) - (éxito, mensaje)
-        """
-        # LIMPIAR DATOS DE ENTRADA (quitar espacios)
         u_limpio = usuario.strip()
         p_limpio = password.strip()
         
-        # VALIDAR QUE NO ESTEN VACIOS
         if not u_limpio or not p_limpio:
-            return False, "ERROR: Los campos no pueden estar vacíos"
+            # Enviamos 3 cosas: (Exito, Mensaje, Rol)
+            return False, "Campos vacíos", None
         
-        rol = self.db.validar_usuario(u_limpio, p_limpio)
+        # Aquí database devuelve "administrador", "operador" o None
+        rol_db = self.db.validar_usuario(u_limpio, p_limpio)
 
-        if rol:
-            # Si 'rol' tiene algo (admin/operador), el login fue exitoso
-            # Devolvemos True y el valor del rol para que el Login sepa a dónde ir
-            return True, rol
+        if rol_db:
+            # IMPORTANTE: Devolvemos 3 valores siempre
+            # Exito = True
+            # Mensaje = "Acceso correcto"
+            # Rol = El que vino de la DB (administrador u operador)
+            return True, "Acceso correcto", rol_db
         else:
-            return False, "Usuario o contraseña incorrectos"
+            return False, "Credenciales incorrectas", None
